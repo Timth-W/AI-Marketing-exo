@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A fictional IT incident dashboard with local incident tracking and assignment simulation.">
+<title>ServiceNow Incident Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    font: 100%/1.5 "Segoe UI", system-ui, sans-serif;
+    --ink: #152b35; --muted: #526775; --line: #e1e9ed; --canvas: #f4f7f8;
+    --nav: #102f39; --green: #097457; --green-dark: #065940; --mint: #dff5eb;
+    --blue: #2766a5; --blue-soft: #e9f2fd; --red: #ad3746; --red-soft: #fcecef;
+    --resolve: #24a782; --progress: #5c90d9; --hold: #d9a04b; --open: #294e72;
+    --radius: 15px; --shadow: 0 2px 4px #102f3907; --sidebar: 232px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; background: var(--canvas); color: var(--ink); }
+  button, input, select, textarea { font: inherit; }
+  button, select { cursor: pointer; }
+  button { color: inherit; }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid #308bd1; outline-offset: 3px; }
+  :disabled { cursor: default; opacity: .45; }
+  [hidden] { display: none !important; }
+  .icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7;
+    stroke-linecap: round; stroke-linejoin: round; flex: none; vertical-align: middle; }
+  .sidebar {
+    position: fixed; inset: 0 auto 0 0; width: var(--sidebar); display: flex; flex-direction: column;
+    padding: 30px 17px 20px; background: var(--nav); color: #c4d6dc; z-index: 2;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 0 9px; }
+  .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px;
+    background: #85ebbd; color: #133e37; flex: none; }
+  .brand-mark .icon { width: 23px; height: 23px; stroke-width: 2; }
+  .brand-name { display: block; color: white; font-size: 1.1rem; font-weight: 750; line-height: 1.15; letter-spacing: -.025em; }
+  .brand-caption { display: block; margin-top: 3px; font-size: .8125rem; }
+  .side-nav { margin-top: 49px; display: grid; gap: 6px; }
+  .nav-label { margin: 0 12px 5px; font-size: .75rem; color: #a7c0c8; letter-spacing: .10em; text-transform: uppercase; font-weight: 700; }
+  .nav-link { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 9px;
+    text-decoration: none; font-size: .9rem; font-weight: 600; transition: background .18s, color .18s; }
+  .nav-link:hover { background: #204751; color: white; }
+  .nav-link[aria-current] { background: #214c51; color: #a6f1cd; }
+  .sidebar-foot { margin: auto 4px 0; padding: 15px 8px 0; border-top: 1px solid #315460; font-size: .8125rem; }
+  .sidebar-foot span { display: flex; gap: 8px; align-items: center; }
+  .sidebar-foot .icon { width: 16px; height: 16px; color: #9dd7bf; }
+  .workspace { margin-left: var(--sidebar); }
+  .topbar { background: white; border-bottom: 1px solid var(--line); padding: 14px clamp(20px, 3.25vw, 46px); }
+  .topbar-inner { max-width: 1330px; margin-inline: auto; min-height: 35px; display: flex;
+    align-items: center; justify-content: space-between; gap: 16px; }
+  .breadcrumb { display: flex; align-items: center; gap: 9px; font-size: .875rem; color: var(--muted); }
+  .breadcrumb strong { color: var(--ink); font-weight: 650; }
+  .breadcrumb .icon { width: 15px; height: 15px; }
+  .demo { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; border-radius: 20px;
+    padding: 4px 10px; background: #eef7f4; color: #275b4f; font-size: .8125rem; font-weight: 650; }
+  .demo::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #239472; }
+  main { max-width: 1422px; padding: 30px clamp(20px, 3.25vw, 46px) 46px; margin-inline: auto; }
+  section { scroll-margin-top: 16px; }
+  .intro { margin: 0 0 24px; display: flex; justify-content: space-between; align-items: end; gap: 16px; }
+  h1, h2, h3, p { margin: 0; }
+  h1 { font-size: clamp(1.8rem, 3.1vw, 2.52rem); line-height: 1.13; letter-spacing: -.048em; font-weight: 750; }
+  h2 { font-size: 1.15rem; line-height: 1.3; letter-spacing: -.025em; }
+  .subtext { margin-top: 5px; color: var(--muted); font-size: .875rem; }
+  .intro .subtext { margin-top: 7px; font-size: .95rem; }
+  .button { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: white;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 13px;
+    font-weight: 650; font-size: .875rem; flex: none; transition: background .18s, border-color .18s; }
+  .button:not(:disabled):hover { background: #f0f5f6; border-color: #c1d2d9; }
+  .button .icon { width: 17px; height: 17px; }
+  .primary { background: var(--green); border-color: var(--green); color: white; }
+  .primary:not(:disabled):hover { background: var(--green-dark); border-color: var(--green-dark); }
+  .intro .primary { min-height: 43px; padding-inline: 15px; }
+  .kpis, .charts { display: grid; gap: 16px; }
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .card { background: white; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .metric-card { padding: 17px 18px 15px; }
+  .metric-top { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  .metric-name { font-weight: 650; font-size: .9rem; }
+  .tile-icon { display: inline-grid; place-items: center; width: 37px; height: 37px; border-radius: 10px; flex: none; }
+  .tile-blue { background: var(--blue-soft); color: var(--blue); }
+  .tile-green { background: var(--mint); color: var(--green); }
+  .tile-red { background: var(--red-soft); color: var(--red); }
+  .metric-value { margin-top: 1px; font-size: 2.16rem; line-height: 1.13; letter-spacing: -.05em; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .metric-note { margin-top: 6px; color: var(--muted); font-size: .8125rem; }
+  .charts { margin-top: 17px; grid-template-columns: 1fr 1.12fr; }
+  .chart-card { padding: 18px; }
+  .status-chart { display: grid; grid-template-columns: 130px minmax(0,1fr); align-items: center;
+    gap: clamp(14px, 2vw, 30px); margin-top: 16px; }
+  .donut { border-radius: 50%; aspect-ratio: 1; background: #e1e9ed; display: grid; place-items: center; }
+  .donut-center { width: 75%; aspect-ratio: 1; border-radius: 50%; background: white; display: grid;
+    place-content: center; text-align: center; }
+  .donut-count { font-size: 1.63rem; font-weight: 750; line-height: 1.1; letter-spacing: -.04em; }
+  .donut-label { font-size: .75rem; color: var(--muted); }
+  .legend, .bars, .rules { padding: 0; list-style: none; margin: 0; }
+  .legend { display: grid; gap: 7px; }
+  .legend li { display: grid; grid-template-columns: 9px minmax(0,1fr) auto; gap: 8px; align-items: center; font-size: .875rem; }
+  .swatch { height: 8px; width: 8px; border-radius: 3px; background: var(--swatch); }
+  .chart-value { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .bars { margin-top: 15px; display: grid; gap: 7px; }
+  .bars li { display: grid; grid-template-columns: minmax(92px, .43fr) minmax(0, 1fr) 22px; gap: 9px;
+    align-items: center; font-size: .875rem; }
+  .bar-track { height: 8px; border-radius: 9px; background: #e8f0f0; overflow: hidden; }
+  .bar { height: 100%; border-radius: inherit; background: #2b8d78; transition: width .25s ease-out; }
+  .bars .chart-value { text-align: right; }
+  .section-card { margin-top: 19px; }
+  .section-head { padding: 18px 18px 14px; }
+  .filters { padding: 0 18px 14px; display: grid; grid-template-columns: minmax(140px, 1.6fr) repeat(3, minmax(100px, 1fr)) auto; gap: 9px; }
+  .field { width: 100%; min-width: 0; border: 1px solid #d8e3e8; border-radius: 8px; background: white;
+    color: var(--ink); padding: 8px 10px; min-height: 40px; font-size: .875rem; }
+  .field::placeholder { color: #657b87; }
+  select.field { appearance: none; padding-right: 28px; background: white
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23526775' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center; }
+  .search { position: relative; min-width: 0; }
+  .search > .icon { position: absolute; top: 11px; left: 10px; width: 17px; height: 17px; color: var(--muted); pointer-events: none; }
+  .search .field { padding-left: 34px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
+  thead { background: #f3f7f8; }
+  th { color: #485e6b; font-weight: 650; white-space: nowrap; }
+  th, td { padding: 11px 10px; border-top: 1px solid var(--line); }
+  th:first-child, td:first-child { padding-left: 18px; }
+  th:last-child, td:last-child { padding-right: 18px; }
+  tbody tr:hover { background: #f8fbfb; }
+  td { overflow-wrap: anywhere; }
+  .incident-link { border: 0; background: none; color: #165c8d; padding: 0; font-weight: 700;
+    text-align: left; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+  .incident-link:hover { text-decoration-color: currentColor; }
+  .incident-title { font-weight: 600; }
+  .secondary { color: var(--muted); }
+  .badge { display: inline-flex; white-space: nowrap; border-radius: 6px; padding: 2px 7px; font-size: .8125rem; font-weight: 675; }
+  .p1 { color: #9c293a; background: #fce9ed; } .p2 { color: #8b4d17; background: #fff0de; }
+  .p3 { color: #234d82; background: #eaf2fd; } .p4 { color: #49616d; background: #edf2f4; }
+  .s0 { color: #294e72; background: #e9eff6; } .s1 { color: #245889; background: #e8f2ff; }
+  .s2 { color: #795419; background: #fbf1da; } .s3 { color: #11674f; background: #e4f5ee; }
+  .empty { padding-block: 28px; text-align: center; color: var(--muted); }
+  .table-foot { border-top: 1px solid var(--line); padding: 12px 18px; display: flex;
+    align-items: center; justify-content: space-between; gap: 12px; font-size: .875rem; color: var(--muted); }
+  .pagination { display: flex; align-items: center; gap: 8px; }
+  .pagination .button { min-height: 34px; padding: 5px 9px; }
+  .automation-head { display: flex; align-items: flex-start; gap: 11px; }
+  .automation-body { padding: 0 18px 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .routing-controls { display: grid; justify-items: start; align-content: start; gap: 8px; }
+  label, .group-title { font-size: .875rem; font-weight: 650; }
+  .routing-controls .button { margin-top: 3px; }
+  .routing-result { color: var(--muted); font-size: .875rem; }
+  .rules { margin-top: 8px; }
+  .rules li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: .875rem; }
+  .rules li span:last-child { color: var(--muted); text-align: right; }
+  dialog { width: min(535px, calc(100% - 24px)); max-height: calc(100% - 24px); padding: 0;
+    color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 24px 70px #112a3a35; }
+  dialog::backdrop { background: #112a3a80; }
+  .dialog-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 19px; border-bottom: 1px solid var(--line); }
+  .icon-button { width: 34px; min-height: 34px; padding: 0; }
+  .form-fields { padding: 18px 19px; display: grid; gap: 13px; }
+  .form-field { display: grid; gap: 5px; }
+  .form-grid, .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  textarea.field { resize: vertical; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 13px 19px; border-top: 1px solid var(--line); }
+  .detail-grid { margin: 0; }
+  dt { color: var(--muted); font-size: .8125rem; }
+  dd { margin: 2px 0 0; font-size: .9rem; font-weight: 650; }
+  .description { overflow-wrap: anywhere; white-space: pre-wrap; color: var(--muted); font-size: .9rem; }
+  .detail-title { overflow-wrap: anywhere; }
+  .storage-warning { margin-bottom: 14px; color: #795419; background: #fff4de; padding: 8px 12px; border-radius: 8px; }
+  .toast { position: fixed; z-index: 4; right: 20px; bottom: 20px; max-width: min(390px, calc(100% - 40px));
+    padding: 11px 15px; border-radius: 9px; color: white; background: #143c43; box-shadow: 0 5px 20px #102f392e;
+    font-size: .875rem; animation: appear .2s ease-out; }
+  @keyframes appear { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+  .skip-link { position: fixed; top: 10px; left: 10px; z-index: 5; transform: translateY(-150%); }
+  .skip-link:focus { transform: translateY(0); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  @media (max-width: 1100px) { :root { --sidebar: 197px; } }
+  @media (max-width: 900px) {
+    .sidebar { position: static; width: auto; padding: 12px 20px; flex-direction: row; justify-content: space-between; gap: 12px; align-items: center; }
+    .brand { padding: 0; }
+    .side-nav { margin: 0; display: flex; gap: 3px; }
+    .nav-label, .sidebar-foot { display: none; }
+    .nav-link { padding: 8px; gap: 5px; }
+    .nav-link .icon { width: 16px; height: 16px; }
+    .workspace { margin: 0; }
+  }
+  @media (max-width: 640px) {
+    .sidebar { flex-wrap: wrap; padding-inline: 14px; gap: 9px; }
+    .side-nav { flex: 1 1 100%; }
+    .nav-link { flex: 1; justify-content: center; }
+    .topbar { padding: 7px 14px; }
+    main { padding: 21px 14px 32px; }
+    .intro { align-items: flex-start; flex-direction: column; margin-bottom: 16px; gap: 11px; }
+    .kpis { gap: 6px; }
+    .metric-card { padding: 8px; }
+    .metric-top { align-items: flex-start; flex-direction: column-reverse; gap: 5px; }
+    .metric-name { font-size: .8125rem; }
+    .metric-note { font-size: .75rem; }
+    .metric-value { font-size: 1.7rem; }
+    .tile-icon { width: 31px; height: 31px; }
+    .tile-icon .icon { width: 17px; height: 17px; }
+    .charts, .automation-body { grid-template-columns: 1fr; }
+    .charts { gap: 10px; margin-top: 11px; }
+    .chart-card, .section-head { padding: 14px; }
+    .filters { grid-template-columns: 1fr 1fr; padding-inline: 14px; }
+    .search { grid-column: 1 / -1; }
+    table { min-width: 610px; }
+    .table-wrap:focus-visible { outline-offset: -3px; }
+    .table-foot { padding-inline: 14px; flex-wrap: wrap; }
+    .automation-body { padding-inline: 14px; }
+  }
+  @media (max-width: 380px) {
+    .nav-link { padding-inline: 4px; font-size: .8125rem; }
+    .nav-link .icon { width: 14px; height: 14px; }
+    .topbar-inner, .breadcrumb { gap: 5px; }
+    .breadcrumb { font-size: .8125rem; }
+    .demo { padding-inline: 7px; font-size: .75rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M2 12h5l3-7 4 14 3-7h5"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8m-8 4h5"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-12h-7l1-8Z"/></symbol>
+  <symbol id="i-device" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13 6 5h12l3 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Zm0 0h5l2 3h4l2-3h5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.8 3 17.4A1.7 1.7 0 0 0 4.5 20h15a1.7 1.7 0 0 0 1.5-2.6L13.7 4.8a2 2 0 0 0-3.4 0ZM12 9v4m0 3h.01"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+</svg>
+<a class="button skip-link" href="#overview">Skip to dashboard</a>
+<aside class="sidebar">
+  <div class="brand">
+    <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-pulse"></use></svg></span>
+    <div><span class="brand-name">ServiceNow</span><span class="brand-caption">Incident Dashboard</span></div>
+  </div>
+  <nav class="side-nav" aria-label="Dashboard sections">
+    <p class="nav-label">Workspace</p>
+    <a class="nav-link" href="#overview" aria-current="location"><svg class="icon" aria-hidden="true"><use href="#i-grid"></use></svg>Overview</a>
+    <a class="nav-link" href="#incidents"><svg class="icon" aria-hidden="true"><use href="#i-list"></use></svg>Incidents</a>
+    <a class="nav-link" href="#automation"><svg class="icon" aria-hidden="true"><use href="#i-bolt"></use></svg>Automation</a>
+  </nav>
+  <div class="sidebar-foot"><span><svg class="icon" aria-hidden="true"><use href="#i-device"></use></svg>Data saved on this browser</span></div>
+</aside>
+<div class="workspace">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="breadcrumb">IT Operations <svg class="icon" aria-hidden="true"><use href="#i-chevron"></use></svg> <strong id="current-section">Overview</strong></div>
+      <span class="demo">Fictional demo data</span>
+    </div>
+  </header>
+  <main>
+    <p class="storage-warning" id="storage-warning" role="status" hidden></p>
+    <section id="overview" aria-labelledby="page-title" tabindex="-1">
+      <div class="intro">
+        <div><h1 id="page-title">Incident overview</h1><p class="subtext">Monitor incidents, track resolutions, and route work to IT teams.</p></div>
+        <button type="button" class="button primary" id="new-incident"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>New incident</button>
+      </div>
+      <div class="kpis" aria-label="Incident totals">
+        <article class="card metric-card">
+          <div class="metric-top"><h2 class="metric-name">Open incidents</h2><span class="tile-icon tile-blue"><svg class="icon" aria-hidden="true"><use href="#i-inbox"></use></svg></span></div>
+          <p class="metric-value" id="open-count">0</p><p class="metric-note">All unresolved incidents</p>
+        </article>
+        <article class="card metric-card">
+          <div class="metric-top"><h2 class="metric-name">Resolved incidents</h2><span class="tile-icon tile-green"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span></div>
+          <p class="metric-value" id="resolved-count">0</p><p class="metric-note">Marked as resolved</p>
+        </article>
+        <article class="card metric-card">
+          <div class="metric-top"><h2 class="metric-name">Critical incidents</h2><span class="tile-icon tile-red"><svg class="icon" aria-hidden="true"><use href="#i-alert"></use></svg></span></div>
+          <p class="metric-value" id="critical-count">0</p><p class="metric-note">Unresolved priority 1</p>
+        </article>
+      </div>
+      <div class="charts">
+        <article class="card chart-card">
+          <h2>Incidents by status</h2><p class="subtext">All incidents by lifecycle stage</p>
+          <div class="status-chart">
+            <div class="donut" id="status-ring" aria-hidden="true"><div class="donut-center"><span class="donut-count" id="total-count"></span><span class="donut-label">Total incidents</span></div></div>
+            <ul class="legend" id="status-legend"></ul>
+          </div>
+        </article>
+        <article class="card chart-card">
+          <h2>Incidents by category</h2><p class="subtext">Volume across IT services</p>
+          <ul class="bars" id="category-bars"></ul>
+        </article>
+      </div>
+    </section>
+    <section class="card section-card" id="incidents" aria-labelledby="incidents-title" tabindex="-1">
+      <header class="section-head"><h2 id="incidents-title">Incident queue</h2><p class="subtext">Select an incident ID to view details or update its status.</p></header>
+      <div class="filters" aria-label="Incident filters">
+        <label class="search"><span class="sr-only">Search incidents</span><svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg><input class="field" type="search" id="search" placeholder="Search incidents"></label>
+        <select class="field" id="priority-filter" aria-label="Filter by priority"></select>
+        <select class="field" id="status-filter" aria-label="Filter by status"></select>
+        <select class="field" id="category-filter" aria-label="Filter by category"></select>
+        <button type="button" class="button" id="clear-filters">Clear filters</button>
+      </div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Incident queue table">
+        <table>
+          <thead><tr><th scope="col">Incident ID</th><th scope="col">Summary</th><th scope="col">Priority</th><th scope="col">Status</th><th scope="col">Category</th><th scope="col">Assigned team</th></tr></thead>
+          <tbody id="incident-rows"></tbody>
+        </table>
+      </div>
+      <div class="table-foot">
+        <span id="queue-count" role="status"></span>
+        <div class="pagination" aria-label="Queue pagination">
+          <button type="button" class="button" id="previous-page">Previous</button><button type="button" class="button" id="next-page">Next</button>
+        </div>
+      </div>
+    </section>
+    <section class="card section-card" id="automation" aria-labelledby="automation-title" tabindex="-1">
+      <header class="section-head automation-head">
+        <span class="tile-icon tile-green"><svg class="icon" aria-hidden="true"><use href="#i-bolt"></use></svg></span>
+        <div><h2 id="automation-title">Assignment simulator</h2><p class="subtext">Assign unresolved incidents to IT teams using category rules.</p></div>
+      </header>
+      <div class="automation-body">
+        <div class="routing-controls">
+          <label for="routing-scope">Incidents to assign</label>
+          <select class="field" id="routing-scope" aria-describedby="routing-preview"></select>
+          <p class="routing-result" id="routing-preview"></p>
+          <button type="button" class="button primary" id="run-routing"><svg class="icon" aria-hidden="true"><use href="#i-bolt"></use></svg>Run automation</button>
+        </div>
+        <div><h3 class="group-title">Category routing rules</h3><ul class="rules" id="routing-rules"></ul></div>
+      </div>
+    </section>
+  </main>
+</div>
+<dialog id="create-dialog" aria-labelledby="create-title">
+  <form id="create-form">
+    <div class="dialog-head"><div><h2 id="create-title">New incident</h2><p class="subtext">Enter the details of a fictional IT issue.</p></div>
+      <button type="button" class="button icon-button" data-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button></div>
+    <div class="form-fields">
+      <label class="form-field">Summary<input class="field" name="summary" maxlength="100" required autofocus></label>
+      <div class="form-grid">
+        <label class="form-field">Category<select class="field" name="category" id="create-category" required></select></label>
+        <label class="form-field">Priority<select class="field" name="priority" id="create-priority" required></select></label>
+      </div>
+      <label class="form-field">Description (optional)<textarea class="field" name="description" rows="3" maxlength="600"></textarea></label>
+    </div>
+    <div class="dialog-actions"><button type="button" class="button" data-close>Cancel</button><button type="submit" class="button primary">Create incident</button></div>
+  </form>
+</dialog>
+<dialog id="edit-dialog" aria-labelledby="edit-title">
+  <form id="edit-form">
+    <div class="dialog-head"><div><h2 class="detail-title" id="edit-title"></h2><p class="subtext" id="detail-id"></p></div>
+      <button type="button" class="button icon-button" data-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button></div>
+    <div class="form-fields">
+      <dl class="detail-grid">
+        <div><dt>Priority</dt><dd id="detail-priority"></dd></div><div><dt>Category</dt><dd id="detail-category"></dd></div>
+        <div><dt>Assigned team</dt><dd id="detail-team"></dd></div><div><dt>Created</dt><dd id="detail-date"></dd></div>
+      </dl>
+      <p class="description" id="detail-description"></p>
+      <label class="form-field">Status<select class="field" name="status" id="edit-status" required autofocus></select></label>
+    </div>
+    <div class="dialog-actions"><button type="button" class="button" data-close>Cancel</button><button type="submit" class="button primary">Save status</button></div>
+  </form>
+</dialog>
+<div role="status" class="sr-only" id="announcement"></div>
+<div class="toast" id="toast" aria-hidden="true" hidden></div>
+<script>
+  'use strict';
+
+  const categories = {
+    Network: 'Network Operations',
+    Applications: 'Application Support',
+    Hardware: 'Endpoint Services',
+    'Access & Identity': 'Identity & Access',
+    Security: 'Security Operations'
+  };
+  const priorities = {
+    1: 'P1 Critical', 2: 'P2 High', 3: 'P3 Moderate', 4: 'P4 Low'
+  };
+  const statuses = ['Open', 'In progress', 'On hold', 'Resolved'];
+  const statusColors = ['var(--open)', 'var(--progress)', 'var(--hold)', 'var(--resolve)'];
+  const startingIncidents = [
+    [1012, 'Branch office VPN unavailable', 'Network', 1, 'Open', '', 'Staff at the fictional Cedar Point branch cannot connect to the internal network.'],
+    [1011, 'Expense portal returns a blank page', 'Applications', 2, 'In progress', 'Application Support', 'The demo expense portal shows a blank page after users submit a draft.'],
+    [1010, 'Shared mailbox permissions missing', 'Access & Identity', 3, 'Open', '', 'The fictional support team lost access to its shared inbox after a role change.'],
+    [1009, 'Conference room display flickers', 'Hardware', 4, 'On hold', '', 'The display in the Elm meeting room flickers after several minutes. A replacement cable is pending.'],
+    [1008, 'Endpoint protection alerts across lab PCs', 'Security', 1, 'In progress', 'Security Operations', 'The simulated lab monitoring feed flagged repeated alerts from three training workstations.'],
+    [1007, 'Warehouse Wi-Fi drops connections', 'Network', 2, 'Open', '', 'Demo handheld scanners disconnect repeatedly while moving between warehouse aisles.'],
+    [1006, 'Reporting job skips daily exports', 'Applications', 1, 'Open', '', 'The fictional inventory reporting job missed its scheduled export for all training locations.'],
+    [1005, 'Training account locked after reset', 'Access & Identity', 3, 'Resolved', 'Identity & Access', 'The demo account was unlocked and access was restored.'],
+    [1004, 'Docking station fails to charge laptop', 'Hardware', 3, 'Resolved', 'Endpoint Services', 'A replacement dock restored charging on the training laptop.'],
+    [1003, 'Email filtering quarantines test alerts', 'Security', 2, 'On hold', 'Security Operations', 'Delivery of simulated monitoring alerts is paused while the team reviews the filtering rule.'],
+    [1002, 'Internal wiki search fails to load', 'Applications', 3, 'Resolved', 'Application Support', 'The fictional wiki search index was rebuilt and verified.'],
+    [1001, 'Guest network login loops', 'Network', 3, 'Resolved', 'Network Operations', 'The fictional visitor network sign-in page was restored after a configuration correction.']
+  ].map(([number, summary, category, priority, status, team, description], index) => ({
+    number, summary, category, priority, status, team, description,
+    createdAt: Date.UTC(2026, 10, 18, 18 - index)
+  }));
+
+  const storageKey = 'servicenow-incident-dashboard-v1';
+  const pageSize = 6;
+  const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  const byId = id => document.getElementById(id);
+  const search = byId('search');
+  const priorityFilter = byId('priority-filter');
+  const statusFilter = byId('status-filter');
+  const categoryFilter = byId('category-filter');
+  const filters = [search, priorityFilter, statusFilter, categoryFilter];
+  const rows = byId('incident-rows');
+  const previous = byId('previous-page');
+  const next = byId('next-page');
+  const routingScope = byId('routing-scope');
+  const runRouting = byId('run-routing');
+  const createDialog = byId('create-dialog');
+  const createForm = byId('create-form');
+  const editDialog = byId('edit-dialog');
+  const editStatus = byId('edit-status');
+  let incidents = loadIncidents();
+  let page = 0;
+  let editingNumber = null;
+  let toastTimer;
+
+  function showStorageWarning(message) {
+    const warning = byId('storage-warning');
+    warning.textContent = message;
+    warning.hidden = false;
+  }
+
+  function loadIncidents() {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved === null) return startingIncidents;
+      const parsed = JSON.parse(saved);
+      const valid = Array.isArray(parsed) && parsed.every(incident =>
+        incident && Number.isSafeInteger(incident.number) && Number.isFinite(incident.createdAt) &&
+        typeof incident.summary === 'string' && typeof incident.description === 'string' &&
+        typeof incident.team === 'string' && Object.hasOwn(categories, incident.category) &&
+        Object.hasOwn(priorities, incident.priority) && statuses.includes(incident.status)
+      );
+      if (valid && new Set(parsed.map(incident => incident.number)).size === parsed.length) return parsed;
+    } catch (error) {
+      showStorageWarning('Saved incidents could not be loaded. The dashboard is showing demo data.');
+      return startingIncidents;
+    }
+    showStorageWarning('Saved incident data was unreadable. The dashboard is showing demo data.');
+    return startingIncidents;
+  }
+
+  function saveIncidents() {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(incidents));
+      byId('storage-warning').hidden = true;
+    } catch (error) {
+      showStorageWarning('Browser storage is unavailable. Changes will last until you close or reload this page.');
+    }
+    render();
+  }
+
+  function incidentId(number) {
+    return 'INC' + String(number).padStart(7, '0');
+  }
+
+  function element(tag, className, content) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (content !== undefined) node.textContent = content;
+    return node;
+  }
+
+  function setOptions(select, options, firstLabel) {
+    const items = options.map(([value, label]) => new Option(label, value));
+    if (firstLabel) items.unshift(new Option(firstLabel, ''));
+    select.replaceChildren(...items);
+  }
+
+  function renderOverview() {
+    const statusCounts = statuses.map(status => incidents.filter(incident => incident.status === status).length);
+    const resolved = statusCounts[3];
+    byId('open-count').textContent = incidents.length - resolved;
+    byId('resolved-count').textContent = resolved;
+    byId('critical-count').textContent = incidents.filter(incident => incident.priority === 1 && incident.status !== 'Resolved').length;
+    byId('total-count').textContent = incidents.length;
+
+    let angle = 0;
+    const segments = [];
+    const legend = statuses.map((status, index) => {
+      const count = statusCounts[index];
+      const color = statusColors[index];
+      if (count) {
+        const end = angle + count / incidents.length * 360;
+        segments.push(color + ' ' + angle + 'deg ' + end + 'deg');
+        angle = end;
+      }
+      const item = element('li');
+      const swatch = element('span', 'swatch');
+      swatch.style.setProperty('--swatch', color);
+      item.append(swatch, element('span', '', status), element('span', 'chart-value', count));
+      return item;
+    });
+    byId('status-ring').style.background = segments.length ? 'conic-gradient(' + segments.join(', ') + ')' : '';
+    byId('status-legend').replaceChildren(...legend);
+
+    const counts = Object.keys(categories).map(category => [
+      category, incidents.filter(incident => incident.category === category).length
+    ]);
+    const max = Math.max(1, ...counts.map(([, count]) => count));
+    byId('category-bars').replaceChildren(...counts.map(([category, count]) => {
+      const item = element('li');
+      const track = element('div', 'bar-track');
+      track.setAttribute('aria-hidden', 'true');
+      const bar = element('div', 'bar');
+      bar.style.width = count / max * 100 + '%';
+      track.append(bar);
+      item.append(element('span', '', category), track, element('span', 'chart-value', count));
+      return item;
+    }));
+  }
+
+  function sortedIncidents() {
+    return [...incidents].sort((first, second) => second.number - first.number);
+  }
+
+  function renderQueue() {
+    const query = search.value.trim().toLowerCase();
+    const matches = sortedIncidents().filter(incident =>
+      (!priorityFilter.value || incident.priority === Number(priorityFilter.value)) &&
+      (!statusFilter.value || incident.status === statusFilter.value) &&
+      (!categoryFilter.value || incident.category === categoryFilter.value) &&
+      (!query || [incidentId(incident.number), incident.summary, incident.team, incident.description]
+        .some(text => text.toLowerCase().includes(query)))
+    );
+    const lastPage = Math.max(0, Math.ceil(matches.length / pageSize) - 1);
+    page = Math.min(page, lastPage);
+    const start = page * pageSize;
+    const visible = matches.slice(start, start + pageSize);
+
+    rows.replaceChildren(...visible.map(incident => {
+      const row = element('tr');
+      const id = element('td');
+      const link = element('button', 'incident-link', incidentId(incident.number));
+      link.type = 'button';
+      link.dataset.incident = incident.number;
+      id.append(link);
+      const priority = element('td');
+      priority.append(element('span', 'badge p' + incident.priority, priorities[incident.priority]));
+      const status = element('td');
+      status.append(element('span', 'badge s' + statuses.indexOf(incident.status), incident.status));
+      row.append(id, element('td', 'incident-title', incident.summary), priority, status,
+        element('td', 'secondary', incident.category), element('td', 'secondary', incident.team || 'Unassigned'));
+      return row;
+    }));
+    if (!visible.length) {
+      const row = rows.insertRow();
+      const cell = element('td', 'empty', 'No incidents match your filters.');
+      cell.colSpan = 6;
+      row.append(cell);
+    }
+    byId('queue-count').textContent = visible.length
+      ? 'Showing ' + (start + 1) + '–' + (start + visible.length) + ' of ' + matches.length
+      : 'Showing 0 incidents';
+    previous.disabled = page === 0;
+    next.disabled = page === lastPage;
+  }
+
+  function eligibleIncidents() {
+    return sortedIncidents().filter(incident => incident.status !== 'Resolved' && !incident.team);
+  }
+
+  function routingTargets() {
+    return eligibleIncidents().filter(incident => !routingScope.value || incident.number === Number(routingScope.value));
+  }
+
+  function renderRoutingPreview() {
+    const targets = routingTargets();
+    if (!targets.length) {
+      byId('routing-preview').textContent = 'No unresolved, unassigned incidents are available.';
+    } else if (routingScope.value) {
+      byId('routing-preview').textContent = 'Team for this incident: ' + categories[targets[0].category];
+    } else {
+      byId('routing-preview').textContent = targets.length + (targets.length === 1 ? ' incident ready to assign.' : ' incidents ready to assign.');
+    }
+    runRouting.disabled = targets.length === 0;
+  }
+
+  function render() {
+    renderOverview();
+    renderQueue();
+    const selected = routingScope.value;
+    setOptions(routingScope, eligibleIncidents().map(incident => [
+      incident.number, incidentId(incident.number) + ' · ' + incident.summary
+    ]), 'All unassigned, unresolved incidents');
+    if (Array.from(routingScope.options).some(option => option.value === selected)) routingScope.value = selected;
+    renderRoutingPreview();
+  }
+
+  function notify(message) {
+    const toast = byId('toast');
+    byId('announcement').textContent = message;
+    toast.textContent = message;
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.hidden = true; }, 3600);
+  }
+
+  function resetFilters() {
+    filters.forEach(field => { field.value = ''; });
+    page = 0;
+  }
+
+  function openDetails(number) {
+    const incident = incidents.find(entry => entry.number === number);
+    if (!incident) return;
+    editingNumber = number;
+    byId('edit-title').textContent = incident.summary;
+    byId('detail-id').textContent = incidentId(number);
+    byId('detail-priority').textContent = priorities[incident.priority];
+    byId('detail-category').textContent = incident.category;
+    byId('detail-team').textContent = incident.team || 'Unassigned';
+    byId('detail-date').textContent = dateFormat.format(incident.createdAt);
+    byId('detail-description').textContent = incident.description;
+    byId('detail-description').hidden = !incident.description;
+    editStatus.value = incident.status;
+    editDialog.showModal();
+  }
+
+  const categoryOptions = Object.keys(categories).map(category => [category, category]);
+  const priorityOptions = Object.entries(priorities);
+  const statusOptions = statuses.map(status => [status, status]);
+  setOptions(priorityFilter, priorityOptions, 'All priorities');
+  setOptions(statusFilter, statusOptions, 'All statuses');
+  setOptions(categoryFilter, categoryOptions, 'All categories');
+  setOptions(byId('create-category'), categoryOptions, 'Select a category');
+  setOptions(byId('create-priority'), priorityOptions);
+  byId('create-priority').options[2].defaultSelected = true;
+  setOptions(editStatus, statusOptions);
+  byId('routing-rules').replaceChildren(...Object.entries(categories).map(([category, team]) => {
+    const item = element('li');
+    item.append(element('span', '', category), element('span', '', team));
+    return item;
+  }));
+  render();
+
+  filters.forEach(field => field.addEventListener(field === search ? 'input' : 'change', () => {
+    page = 0;
+    renderQueue();
+  }));
+  byId('clear-filters').addEventListener('click', () => { resetFilters(); renderQueue(); });
+  previous.addEventListener('click', () => {
+    page -= 1;
+    renderQueue();
+    if (previous.disabled) next.focus();
+  });
+  next.addEventListener('click', () => {
+    page += 1;
+    renderQueue();
+    if (next.disabled) previous.focus();
+  });
+  rows.addEventListener('click', event => {
+    const button = event.target.closest('[data-incident]');
+    if (button) openDetails(Number(button.dataset.incident));
+  });
+  routingScope.addEventListener('change', renderRoutingPreview);
+  runRouting.addEventListener('click', () => {
+    const targets = routingTargets();
+    if (!targets.length) return;
+    targets.forEach(incident => { incident.team = categories[incident.category]; });
+    saveIncidents();
+    if (runRouting.disabled) routingScope.focus();
+    notify(targets.length === 1
+      ? incidentId(targets[0].number) + ' assigned to ' + targets[0].team + '.'
+      : targets.length + ' incidents assigned using category rules.');
+  });
+  document.querySelectorAll('[data-close]').forEach(button => {
+    button.addEventListener('click', () => button.closest('dialog').close());
+  });
+  byId('new-incident').addEventListener('click', () => {
+    createForm.reset();
+    createForm.elements.summary.setCustomValidity('');
+    createDialog.showModal();
+  });
+  createForm.elements.summary.addEventListener('input', event => event.target.setCustomValidity(''));
+  createForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const form = new FormData(createForm);
+    const summary = form.get('summary').trim();
+    if (!summary) {
+      createForm.elements.summary.setCustomValidity('Enter an incident summary.');
+      createForm.elements.summary.reportValidity();
+      return;
+    }
+    const number = incidents.reduce((max, incident) => Math.max(max, incident.number), 1000) + 1;
+    incidents.push({
+      number, summary, category: form.get('category'), priority: Number(form.get('priority')),
+      description: form.get('description').trim(), status: 'Open', team: '', createdAt: Date.now()
+    });
+    resetFilters();
+    createDialog.close();
+    saveIncidents();
+    notify(incidentId(number) + ' created.');
+  });
+  byId('edit-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const incident = incidents.find(entry => entry.number === editingNumber);
+    if (!incident) { editDialog.close(); return; }
+    const changed = incident.status !== editStatus.value;
+    incident.status = editStatus.value;
+    editDialog.close();
+    if (changed) {
+      saveIncidents();
+      const rowButton = rows.querySelector('[data-incident="' + incident.number + '"]');
+      (rowButton || statusFilter).focus();
+      notify(incidentId(incident.number) + ' status updated to ' + incident.status.toLowerCase() + '.');
+    }
+  });
+
+  const navLinks = [...document.querySelectorAll('.nav-link')];
+  function markSection() {
+    const active = navLinks.find(link => link.hash === location.hash) || navLinks[0];
+    navLinks.forEach(link => {
+      if (link === active) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+    byId('current-section').textContent = active.textContent.trim();
+  }
+  window.addEventListener('hashchange', markSection);
+  markSection();
+</script>
+</body>
+</html>
